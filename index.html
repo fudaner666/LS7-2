@@ -3,7 +3,7 @@
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
-  <title>LS7 心血管健康快速评估（离线版）</title>
+  <title>LS7 心血管健康快速评估（纯 JS 离线修正版）</title>
   <style>
     :root{--bg:#f8fafc;--card:#fff;--border:#e5e7eb;--text:#111827;--muted:#6b7280;
           --primary:#111827;--pill-ideal:#16a34a;--pill-int:#d97706;--pill-poor:#e11d48;}
@@ -252,7 +252,18 @@
           Diet: state.quick.diet,
         };
       }
-      const { sbp, dbp, bpMed, chol, lipidMed, a1c, gluMed, smoking, bmi, paMin, hei } = state.inputs;
+      const sbp = state.inputs.sbp;
+      const dbp = state.inputs.dbp;
+      const bpMed = state.inputs.bpMed;
+      const chol = state.inputs.chol;
+      const lipidMed = state.inputs.lipidMed;
+      const a1c = state.inputs.a1c;
+      const gluMed = state.inputs.gluMed;
+      const smoking = state.inputs.smoking;
+      const bmi = state.inputs.bmi;
+      const paMin = state.inputs.paMin;
+      const hei = state.inputs.hei;
+
       const bp = (sbp===""||dbp==="") ? "" : ((sbp<120 && dbp<80 && !bpMed) ? "Ideal" : ((sbp>=140||dbp>=90) ? "Poor":"Intermediate"));
       const ch = (chol==="") ? "" : ((chol<200 && !lipidMed) ? "Ideal" : (chol>=240 ? "Poor":"Intermediate"));
       const gl = (a1c==="") ? "" : ((a1c<5.7 && !gluMed) ? "Ideal" : (a1c>6.4 ? "Poor":"Intermediate"));
@@ -270,7 +281,7 @@
       const nonEmpty = values.filter(Boolean).length;
 
       document.getElementById("score").textContent = score;
-      document.getElementById("done-count").textContent = `已完成 ${nonEmpty}/7 项`;
+      document.getElementById("done-count").textContent = "已完成 " + nonEmpty + "/7 项";
       document.getElementById("bar").style.width = (score/14*100).toFixed(1) + "%";
 
       const band = bandFromScore(score);
@@ -292,16 +303,17 @@
       setDetail("diet", statuses.Diet);
     }
 
-    function qSel(name){ return Array.from(document.querySelectorAll(`input[name="${name}"]`)); }
+    function qSel(name){ return Array.prototype.slice.call(document.querySelectorAll('input[name="'+name+'"]')); }
     function wire(){
-      document.querySelectorAll("#mode-seg button").forEach(btn=>{
-        btn.addEventListener("click", ()=>{
-          document.querySelectorAll("#mode-seg button").forEach(b=>b.classList.remove("active"));
+      // 模式切换
+      Array.prototype.forEach.call(document.querySelectorAll("#mode-seg button"), function(btn){
+        btn.addEventListener("click", function(){
+          Array.prototype.forEach.call(document.querySelectorAll("#mode-seg button"), function(b){ b.classList.remove("active"); });
           btn.classList.add("active");
-          state.mode = btn.dataset.mode;
-          const showQuick = state.mode==="quick";
-          const ids = ["bp","chol","glu","smoke","bmi","pa","diet"];
-          ids.forEach(id=>{
+          state.mode = btn.getAttribute("data-mode");
+          var showQuick = state.mode==="quick";
+          var ids = ["bp","chol","glu","smoke","bmi","pa","diet"];
+          ids.forEach(function(id){
             document.getElementById(id+"-numeric").style.display = showQuick ? "none" : (id==="smoke" ? "flex":"flex");
             document.getElementById(id+"-quick").style.display = showQuick ? "flex" : "none";
           });
@@ -309,63 +321,83 @@
         });
       });
 
-      ["sbp","dbp","chol","a1c","bmi","paMin","hei"].forEach(id=>{
-        const el = document.getElementById(id) as HTMLInputElement;
-        el.addEventListener("input", ()=>{
-          const min = Number(el.min||"-Infinity"), max = Number(el.max||"Infinity");
-          const v = el.value === "" ? "" : Math.max(min, Math.min(max, Number(el.value)));
-          // @ts-ignore
+      // 数值输入
+      ["sbp","dbp","chol","a1c","bmi","paMin","hei"].forEach(function(id){
+        var el = document.getElementById(id);
+        el.addEventListener("input", function(){
+          var min = Number(el.min||"-Infinity"), max = Number(el.max||"Infinity");
+          var v = el.value === "" ? "" : Math.max(min, Math.min(max, Number(el.value)));
           state.inputs[id] = v;
           recompute();
         });
       });
-      [["bpMed"],["lipidMed"],["gluMed"]].forEach(([id])=>{
-        const el = document.getElementById(id) as HTMLInputElement;
-        el.addEventListener("change", ()=>{ /* @ts-ignore */ state.inputs[id]=el.checked; recompute(); });
+      // 勾选项
+      ["bpMed","lipidMed","gluMed"].forEach(function(id){
+        var el = document.getElementById(id);
+        el.addEventListener("change", function(){ state.inputs[id]=el.checked; recompute(); });
       });
-      qSel("smoking").forEach(r=> r.addEventListener("change", ()=>{ /* @ts-ignore */ state.inputs.smoking = document.querySelector('input[name="smoking"]:checked').value; recompute(); }));
-
+      // 吸烟单选
+      qSel("smoking").forEach(function(r){
+        r.addEventListener("change", function(){
+          var checked = document.querySelector('input[name="smoking"]:checked');
+          state.inputs.smoking = checked ? checked.value : "";
+          recompute();
+        });
+      });
+      // 快速选择组
       [["bp","q-bp"],["chol","q-chol"],["glu","q-glu"],["smoke","q-smoke"],["bmi","q-bmi"],["pa","q-pa"],["diet","q-diet"]]
-      .forEach(([key, group])=>{
-        qSel(group).forEach(r=> r.addEventListener("change", ()=>{ /* @ts-ignore */ state.quick[key] = document.querySelector(`input[name="${group}"]:checked`)?.value || ""; recompute(); }));
+      .forEach(function(pair){
+        var key = pair[0], group = pair[1];
+        qSel(group).forEach(function(r){
+          r.addEventListener("change", function(){
+            var checked = document.querySelector('input[name="'+group+'"]:checked');
+            state.quick[key] = checked ? checked.value : "";
+            recompute();
+          });
+        });
       });
 
-      document.getElementById("btn-reset").addEventListener("click", ()=>{
-        // @ts-ignore
+      // 重置
+      document.getElementById("btn-reset").addEventListener("click", function(){
         state.quick = { bp:"", chol:"", glu:"", smoke:"", bmi:"", pa:"", diet:"" };
-        // @ts-ignore
         state.inputs = { sbp:120, dbp:75, bpMed:false, chol:180, lipidMed:false, a1c:5.4, gluMed:false, smoking:"never", bmi:23.5, paMin:160, hei:82 };
-        ["sbp","dbp","chol","a1c","bmi","paMin","hei"].forEach(id=>(document.getElementById(id) as HTMLInputElement).value = String(/* @ts-ignore */ state.inputs[id]));
-        ["bpMed","lipidMed","gluMed"].forEach(id=>(document.getElementById(id) as HTMLInputElement).checked = /* @ts-ignore */ state.inputs[id]);
-        qSel("smoking").forEach((r:HTMLInputElement)=>{ r.checked = (r.value===/* @ts-ignore */ state.inputs.smoking); });
-        ["q-bp","q-chol","q-glu","q-smoke","q-bmi","q-pa","q-diet"].forEach(g=>qSel(g).forEach((r:HTMLInputElement)=>r.checked=false));
+        ["sbp","dbp","chol","a1c","bmi","paMin","hei"].forEach(function(id){ document.getElementById(id).value = String(state.inputs[id]); });
+        ["bpMed","lipidMed","gluMed"].forEach(function(id){ document.getElementById(id).checked = state.inputs[id]; });
+        qSel("smoking").forEach(function(r){ r.checked = (r.value===state.inputs.smoking); });
+        ["q-bp","q-chol","q-glu","q-smoke","q-bmi","q-pa","q-diet"].forEach(function(g){ qSel(g).forEach(function(r){ r.checked=false; }); });
         recompute();
       });
 
-      document.getElementById("btn-copy").addEventListener("click", async ()=>{
-        const statuses = computeStatuses();
-        const score = document.getElementById("score").textContent;
-        const lines = [
-          `LS7 总分：${score}/14（${bandFromScore(Number(score))}）`,
-          `血压：${statuses.BloodPressure||"未填"}`,
-          `胆固醇：${statuses.Cholesterol||"未填"}`,
-          `血糖(HbA1c)：${statuses.Glucose||"未填"}`,
-          `吸烟：${statuses.Smoking||"未填"}`,
-          `BMI：${statuses.BMI||"未填"}`,
-          `体力活动：${statuses.PhysicalActivity||"未填"}`,
-          `饮食(HEI)：${statuses.Diet||"未填"}`,
+      // 复制
+      document.getElementById("btn-copy").addEventListener("click", function(){
+        var statuses = computeStatuses();
+        var score = document.getElementById("score").textContent;
+        var lines = [
+          "LS7 总分：" + score + "/14（" + bandFromScore(Number(score)) + "）",
+          "血压：" + (statuses.BloodPressure||"未填"),
+          "胆固醇：" + (statuses.Cholesterol||"未填"),
+          "血糖(HbA1c)：" + (statuses.Glucose||"未填"),
+          "吸烟：" + (statuses.Smoking||"未填"),
+          "BMI：" + (statuses.BMI||"未填"),
+          "体力活动：" + (statuses.PhysicalActivity||"未填"),
+          "饮食(HEI)：" + (statuses.Diet||"未填"),
           "(仅供健康教育参考，非医疗建议)"
         ];
-        const text = lines.join("\n");
-        try{ await navigator.clipboard.writeText(text); alert("结果已复制到剪贴板！"); }
-        catch(e){ console.log(e); prompt("复制失败。请全选并复制下方文本：", text); }
+        var text = lines.join("\n");
+        if(navigator.clipboard && navigator.clipboard.writeText){
+          navigator.clipboard.writeText(text).then(function(){ alert("结果已复制到剪贴板！"); })
+          .catch(function(){ prompt("复制失败。请全选并复制下方文本：", text); });
+        }else{
+          prompt("复制功能不可用。请全选并复制下方文本：", text);
+        }
       });
 
       recompute();
+      console.log("[LS7] wired OK");
     }
 
     function runTests(){
-      function assertEqual(name, got, expect){ const ok=(got===expect); console.log(`${ok?"✅":"❌"} ${name}:`, got, 'expected:', expect); }
+      function assertEqual(name, got, expect){ var ok=(got===expect); console.log((ok?"✅":"❌")+" "+name+":", got, "expected:", expect); }
       assertEqual('band 0', bandFromScore(0), '不良');
       assertEqual('band 4', bandFromScore(4), '不良');
       assertEqual('band 5', bandFromScore(5), '中等');
@@ -377,7 +409,7 @@
       assertEqual('pts Poor', statusToPoints('Poor'), 0);
     }
 
-    window.addEventListener('DOMContentLoaded', ()=>{ wire(); runTests(); });
+    window.addEventListener('DOMContentLoaded', function(){ wire(); runTests(); });
   </script>
 </body>
 </html>
