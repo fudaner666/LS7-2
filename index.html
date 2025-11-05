@@ -1,0 +1,383 @@
+<!doctype html>
+<html lang="zh">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>LS7 心血管健康快速评估（离线版）</title>
+  <style>
+    :root{--bg:#f8fafc;--card:#fff;--border:#e5e7eb;--text:#111827;--muted:#6b7280;
+          --primary:#111827;--pill-ideal:#16a34a;--pill-int:#d97706;--pill-poor:#e11d48;}
+    *{box-sizing:border-box} body{margin:0;background:var(--bg);color:var(--text);font:16px/1.5 system-ui,-apple-system,Segoe UI,Roboto,Ubuntu,Cantarell,Noto Sans,sans-serif}
+    .container{max-width:960px;margin:0 auto;padding:24px}
+    h1{font-size:24px;font-weight:700;margin:0 0 8px}
+    p.note{margin:0 0 24px;color:var(--muted);font-size:14px}
+    .toolbar{display:flex;gap:12px;align-items:center;flex-wrap:wrap;margin-bottom:20px}
+    .seg{border:1px solid var(--border);border-radius:12px;padding:4px;display:inline-flex;gap:4px}
+    .seg button{border:0;background:none;padding:6px 10px;border-radius:8px;cursor:pointer}
+    .seg button.active{background:var(--primary);color:#fff}
+    .btn{border:1px solid var(--border);background:#fff;border-radius:12px;padding:8px 12px;font-size:14px;cursor:pointer}
+    .btn.primary{background:var(--primary);color:#fff;border-color:var(--primary)}
+    .grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:16px}
+    @media (max-width:780px){.grid{grid-template-columns:1fr}}
+    .card{background:var(--card);border:1px solid var(--border);border-radius:16px;padding:16px;box-shadow:0 1px 2px rgba(0,0,0,.04)}
+    .card h3{margin:0 0 12px;font-size:16px}
+    .row{display:flex;gap:12px}
+    .field{flex:1}
+    label{display:block;font-size:13px;color:var(--muted);margin-bottom:6px}
+    input[type="number"]{width:100%;padding:8px 10px;border:1px solid var(--border);border-radius:10px}
+    .radio, .check{display:inline-flex;gap:8px;align-items:center;font-size:14px;margin-right:12px}
+    .pill{display:inline-flex;align-items:center;padding:3px 8px;border-radius:999px;font-size:12px;border:1px solid currentColor}
+    .pill.ideal{color:var(--pill-ideal);background:rgba(22,163,74,.1)}
+    .pill.intermediate{color:var(--pill-int);background:rgba(217,119,6,.1)}
+    .pill.poor{color:var(--pill-poor);background:rgba(225,29,72,.1)}
+    .progress{height:10px;border-radius:999px;background:#e5e7eb;overflow:hidden}
+    .bar{height:100%;background:#111827;width:0%}
+    .muted{color:var(--muted);font-size:12px}
+    .footer{margin-top:16px;font-size:12px;color:var(--muted)}
+    .result-row{display:flex;justify-content:space-between;align-items:center;border:1px solid var(--border);border-radius:10px;padding:8px 12px}
+    .gap-8{display:flex;gap:8px;flex-wrap:wrap;align-items:center}
+  </style>
+</head>
+<body>
+  <noscript>本页面需要启用 JavaScript。</noscript>
+  <div class="container">
+    <h1>Life's Simple 7（LS7）心血管健康快速评估</h1>
+    <p class="note">每项指标：Ideal=2 分、Intermediate=1 分、Poor=0 分，总分 14。本工具仅用于健康教育与自我评估，不替代医疗建议。</p>
+
+    <div class="toolbar">
+      <div class="seg" id="mode-seg">
+        <button data-mode="numeric" class="active">输入数值(自动判定)</button>
+        <button data-mode="quick">快速选择(手动判定)</button>
+      </div>
+      <span style="flex:1"></span>
+      <button class="btn" id="btn-reset">重置</button>
+      <button class="btn primary" id="btn-copy">复制结果</button>
+    </div>
+
+    <div class="card" id="overview">
+      <h3>总分概览 <span class="muted" id="done-count"></span></h3>
+      <div class="row" style="justify-content:space-between;align-items:center;gap:16px">
+        <div class="field" style="max-width:360px">
+          <div style="font-size:28px;font-weight:700"><span id="score">0</span> / 14</div>
+          <div class="gap-8" style="margin-top:6px">
+            <span class="muted">综合：</span>
+            <span id="band-pill" class="pill">—</span>
+          </div>
+          <p class="muted" id="advice" style="margin-top:8px"></p>
+        </div>
+        <div class="field">
+          <div class="progress"><div id="bar" class="bar"></div></div>
+          <p class="muted" style="margin-top:8px">0–4 分：不良；5–9 分：中等；10–14 分：理想。</p>
+        </div>
+      </div>
+    </div>
+
+    <div class="grid" id="cards">
+      <!-- 血压 -->
+      <div class="card">
+        <h3>血压 (mmHg) <span id="pill-bp" class="pill">—</span></h3>
+        <div id="bp-numeric" class="row">
+          <div class="field">
+            <label>收缩压 SBP</label>
+            <input id="sbp" type="number" min="70" max="260" value="120">
+          </div>
+          <div class="field">
+            <label>舒张压 DBP</label>
+            <input id="dbp" type="number" min="40" max="150" value="75">
+          </div>
+          <label class="check"><input type="checkbox" id="bpMed"> 正在使用降压药</label>
+        </div>
+        <div id="bp-quick" class="gap-8" style="display:none">
+          <label class="radio"><input type="radio" name="q-bp" value="Ideal"> Ideal (2)</label>
+          <label class="radio"><input type="radio" name="q-bp" value="Intermediate"> Intermediate (1)</label>
+          <label class="radio"><input type="radio" name="q-bp" value="Poor"> Poor (0)</label>
+        </div>
+        <p class="muted">Ideal：&lt;120/80 且未用药；Intermediate：SBP 120–139 或 DBP 80–89，或用药控制至 &lt;120/80；Poor：SBP ≥140 或 DBP ≥90。</p>
+      </div>
+
+      <!-- 胆固醇 -->
+      <div class="card">
+        <h3>总胆固醇 (mg/dL) <span id="pill-chol" class="pill">—</span></h3>
+        <div id="chol-numeric" class="row">
+          <div class="field">
+            <label>数值</label>
+            <input id="chol" type="number" min="80" max="400" value="180">
+          </div>
+          <label class="check"><input type="checkbox" id="lipidMed"> 正在使用调脂药</label>
+        </div>
+        <div id="chol-quick" class="gap-8" style="display:none">
+          <label class="radio"><input type="radio" name="q-chol" value="Ideal"> Ideal (2)</label>
+          <label class="radio"><input type="radio" name="q-chol" value="Intermediate"> Intermediate (1)</label>
+          <label class="radio"><input type="radio" name="q-chol" value="Poor"> Poor (0)</label>
+        </div>
+        <p class="muted">Ideal：&lt;200 且未用药；Intermediate：200–239 或用药控制至 &lt;200；Poor：≥240。</p>
+      </div>
+
+      <!-- HbA1c -->
+      <div class="card">
+        <h3>HbA1c (%) <span id="pill-glu" class="pill">—</span></h3>
+        <div id="glu-numeric" class="row">
+          <div class="field">
+            <label>A1c</label>
+            <input id="a1c" type="number" step="0.1" min="4" max="15" value="5.4">
+          </div>
+          <label class="check"><input type="checkbox" id="gluMed"> 使用降糖药/胰岛素</label>
+        </div>
+        <div id="glu-quick" class="gap-8" style="display:none">
+          <label class="radio"><input type="radio" name="q-glu" value="Ideal"> Ideal (2)</label>
+          <label class="radio"><input type="radio" name="q-glu" value="Intermediate"> Intermediate (1)</label>
+          <label class="radio"><input type="radio" name="q-glu" value="Poor"> Poor (0)</label>
+        </div>
+        <p class="muted">Ideal：&lt;5.7 且未用药；Intermediate：5.7–6.4 或用药控制至 &lt;5.7；Poor：&gt;6.4。</p>
+      </div>
+
+      <!-- 吸烟 -->
+      <div class="card">
+        <h3>吸烟状况 <span id="pill-smoke" class="pill">—</span></h3>
+        <div id="smoke-numeric" class="gap-8">
+          <label class="radio"><input type="radio" name="smoking" value="never" checked> 从不吸烟</label>
+          <label class="radio"><input type="radio" name="smoking" value="former"> 已戒烟</label>
+          <label class="radio"><input type="radio" name="smoking" value="current"> 当前吸烟</label>
+        </div>
+        <div id="smoke-quick" class="gap-8" style="display:none">
+          <label class="radio"><input type="radio" name="q-smoke" value="Ideal"> Ideal (2)</label>
+          <label class="radio"><input type="radio" name="q-smoke" value="Intermediate"> Intermediate (1)</label>
+          <label class="radio"><input type="radio" name="q-smoke" value="Poor"> Poor (0)</label>
+        </div>
+        <p class="muted">Ideal：从不吸烟；Intermediate：已戒烟；Poor：当前吸烟。</p>
+      </div>
+
+      <!-- BMI -->
+      <div class="card">
+        <h3>体质指数 BMI (kg/m²) <span id="pill-bmi" class="pill">—</span></h3>
+        <div id="bmi-numeric" class="row">
+          <div class="field">
+            <label>BMI</label>
+            <input id="bmi" type="number" step="0.1" min="10" max="60" value="23.5">
+          </div>
+          <div class="field" style="align-self:flex-end"><span class="muted">Ideal：&lt;25；Intermediate：25–29.9；Poor：≥30。</span></div>
+        </div>
+        <div id="bmi-quick" class="gap-8" style="display:none">
+          <label class="radio"><input type="radio" name="q-bmi" value="Ideal"> Ideal (2)</label>
+          <label class="radio"><input type="radio" name="q-bmi" value="Intermediate"> Intermediate (1)</label>
+          <label class="radio"><input type="radio" name="q-bmi" value="Poor"> Poor (0)</label>
+        </div>
+      </div>
+
+      <!-- 体力活动 -->
+      <div class="card">
+        <h3>体力活动 (每周 中/高强度 分钟) <span id="pill-pa" class="pill">—</span></h3>
+        <div id="pa-numeric" class="row">
+          <div class="field">
+            <label>分钟/周</label>
+            <input id="paMin" type="number" min="0" max="2000" value="160">
+          </div>
+          <div class="field" style="align-self:flex-end"><span class="muted">Ideal：≥150；Intermediate：1–149；Poor：0。</span></div>
+        </div>
+        <div id="pa-quick" class="gap-8" style="display:none">
+          <label class="radio"><input type="radio" name="q-pa" value="Ideal"> Ideal (2)</label>
+          <label class="radio"><input type="radio" name="q-pa" value="Intermediate"> Intermediate (1)</label>
+          <label class="radio"><input type="radio" name="q-pa" value="Poor"> Poor (0)</label>
+        </div>
+      </div>
+
+      <!-- 饮食 -->
+      <div class="card">
+        <h3>饮食质量 HEI <span id="pill-diet" class="pill">—</span></h3>
+        <div id="diet-numeric" class="row">
+          <div class="field">
+            <label>HEI (0–100)</label>
+            <input id="hei" type="number" min="0" max="100" value="82">
+          </div>
+          <div class="field" style="align-self:flex-end"><span class="muted">Ideal：&gt;80；Intermediate：50–80；Poor：&lt;50。</span></div>
+        </div>
+        <div id="diet-quick" class="gap-8" style="display:none">
+          <label class="radio"><input type="radio" name="q-diet" value="Ideal"> Ideal (2)</label>
+          <label class="radio"><input type="radio" name="q-diet" value="Intermediate"> Intermediate (1)</label>
+          <label class="radio"><input type="radio" name="q-diet" value="Poor"> Poor (0)</label>
+        </div>
+      </div>
+    </div>
+
+    <div class="card" style="margin-top:16px">
+      <h3>结果明细</h3>
+      <div class="grid" id="details">
+        <div class="result-row"><span>血压</span><span><span id="sc-bp" class="muted">—</span> <span id="pill2-bp" class="pill">—</span></span></div>
+        <div class="result-row"><span>胆固醇</span><span><span id="sc-chol" class="muted">—</span> <span id="pill2-chol" class="pill">—</span></span></div>
+        <div class="result-row"><span>HbA1c</span><span><span id="sc-glu" class="muted">—</span> <span id="pill2-glu" class="pill">—</span></span></div>
+        <div class="result-row"><span>吸烟</span><span><span id="sc-smoke" class="muted">—</span> <span id="pill2-smoke" class="pill">—</span></span></div>
+        <div class="result-row"><span>BMI</span><span><span id="sc-bmi" class="muted">—</span> <span id="pill2-bmi" class="pill">—</span></span></div>
+        <div class="result-row"><span>体力活动</span><span><span id="sc-pa" class="muted">—</span> <span id="pill2-pa" class="pill">—</span></span></div>
+        <div class="result-row"><span>饮食(HEI)</span><span><span id="sc-diet" class="muted">—</span> <span id="pill2-diet" class="pill">—</span></span></div>
+      </div>
+    </div>
+
+    <p class="footer">说明：本页面根据 AHA “Life's Simple 7” 门槛进行打分，阈值取自你提供的表格。若与医生建议不一致，以医生为准。</p>
+  </div>
+
+  <script>
+    function statusToPoints(s){ return s === "Ideal" ? 2 : s === "Intermediate" ? 1 : 0; }
+    function bandFromScore(score){ return score >= 10 ? "理想" : score >= 5 ? "中等" : "不良"; }
+    function pillClass(s){
+      if(s==="Ideal") return "pill ideal";
+      if(s==="Intermediate") return "pill intermediate";
+      if(s==="Poor") return "pill poor";
+      return "pill";
+    }
+    function setPill(el, status){
+      el.className = pillClass(status);
+      el.textContent = status || "—";
+    }
+    function setDetail(idBase, status){
+      document.getElementById("sc-"+idBase).textContent = status ? (statusToPoints(status)+" 分") : "—";
+      setPill(document.getElementById("pill2-"+idBase), status);
+      setPill(document.getElementById("pill-"+idBase), status);
+    }
+
+    const state = {
+      mode: "numeric",
+      quick:{ bp:"", chol:"", glu:"", smoke:"", bmi:"", pa:"", diet:"" },
+      inputs:{ sbp:120, dbp:75, bpMed:false, chol:180, lipidMed:false, a1c:5.4, gluMed:false, smoking:"never", bmi:23.5, paMin:160, hei:82 }
+    };
+
+    function computeStatuses(){
+      if(state.mode==="quick") {
+        return {
+          BloodPressure: state.quick.bp,
+          Cholesterol: state.quick.chol,
+          Glucose: state.quick.glu,
+          Smoking: state.quick.smoke,
+          BMI: state.quick.bmi,
+          PhysicalActivity: state.quick.pa,
+          Diet: state.quick.diet,
+        };
+      }
+      const { sbp, dbp, bpMed, chol, lipidMed, a1c, gluMed, smoking, bmi, paMin, hei } = state.inputs;
+      const bp = (sbp===""||dbp==="") ? "" : ((sbp<120 && dbp<80 && !bpMed) ? "Ideal" : ((sbp>=140||dbp>=90) ? "Poor":"Intermediate"));
+      const ch = (chol==="") ? "" : ((chol<200 && !lipidMed) ? "Ideal" : (chol>=240 ? "Poor":"Intermediate"));
+      const gl = (a1c==="") ? "" : ((a1c<5.7 && !gluMed) ? "Ideal" : (a1c>6.4 ? "Poor":"Intermediate"));
+      const sm = !smoking ? "" : (smoking==="never" ? "Ideal" : (smoking==="former" ? "Intermediate":"Poor"));
+      const bm = (bmi==="") ? "" : (bmi<25 ? "Ideal" : (bmi>=30 ? "Poor":"Intermediate"));
+      const pa = (paMin==="") ? "" : (Number(paMin)<=0 ? "Poor" : (paMin>=150 ? "Ideal":"Intermediate"));
+      const dt = (hei==="") ? "" : (hei>80 ? "Ideal" : (hei<50 ? "Poor":"Intermediate"));
+      return { BloodPressure:bp, Cholesterol:ch, Glucose:gl, Smoking:sm, BMI:bm, PhysicalActivity:pa, Diet:dt };
+    }
+
+    function recompute(){
+      const statuses = computeStatuses();
+      const values = Object.values(statuses);
+      const score = values.reduce((sum,s)=>sum+statusToPoints(s),0);
+      const nonEmpty = values.filter(Boolean).length;
+
+      document.getElementById("score").textContent = score;
+      document.getElementById("done-count").textContent = `已完成 ${nonEmpty}/7 项`;
+      document.getElementById("bar").style.width = (score/14*100).toFixed(1) + "%";
+
+      const band = bandFromScore(score);
+      const pill = document.getElementById("band-pill");
+      pill.className = "pill " + (band==="理想" ? "ideal" : band==="中等" ? "intermediate":"poor");
+      pill.textContent = band;
+
+      const advice = band==="理想" ? "总体处于理想范围。建议保持：每周≥150分钟中/高强度体力活动，均衡膳食（HEI>80），不吸烟，定期体检。"
+                    : band==="中等" ? "有提升空间。优先改进未达标的1–2项：逐步把体力活动提升到≥150分钟/周，优化饮食结构，控制体重，按医嘱用药并随访。"
+                    : "心血管健康状况不理想。建议尽快评估可改变的危险因素（如吸烟、血压、血糖、血脂、体重、活动与饮食），必要时咨询专业医生。";
+      document.getElementById("advice").textContent = advice;
+
+      setDetail("bp", statuses.BloodPressure);
+      setDetail("chol", statuses.Cholesterol);
+      setDetail("glu", statuses.Glucose);
+      setDetail("smoke", statuses.Smoking);
+      setDetail("bmi", statuses.BMI);
+      setDetail("pa", statuses.PhysicalActivity);
+      setDetail("diet", statuses.Diet);
+    }
+
+    function qSel(name){ return Array.from(document.querySelectorAll(`input[name="${name}"]`)); }
+    function wire(){
+      document.querySelectorAll("#mode-seg button").forEach(btn=>{
+        btn.addEventListener("click", ()=>{
+          document.querySelectorAll("#mode-seg button").forEach(b=>b.classList.remove("active"));
+          btn.classList.add("active");
+          state.mode = btn.dataset.mode;
+          const showQuick = state.mode==="quick";
+          const ids = ["bp","chol","glu","smoke","bmi","pa","diet"];
+          ids.forEach(id=>{
+            document.getElementById(id+"-numeric").style.display = showQuick ? "none" : (id==="smoke" ? "flex":"flex");
+            document.getElementById(id+"-quick").style.display = showQuick ? "flex" : "none";
+          });
+          recompute();
+        });
+      });
+
+      ["sbp","dbp","chol","a1c","bmi","paMin","hei"].forEach(id=>{
+        const el = document.getElementById(id) as HTMLInputElement;
+        el.addEventListener("input", ()=>{
+          const min = Number(el.min||"-Infinity"), max = Number(el.max||"Infinity");
+          const v = el.value === "" ? "" : Math.max(min, Math.min(max, Number(el.value)));
+          // @ts-ignore
+          state.inputs[id] = v;
+          recompute();
+        });
+      });
+      [["bpMed"],["lipidMed"],["gluMed"]].forEach(([id])=>{
+        const el = document.getElementById(id) as HTMLInputElement;
+        el.addEventListener("change", ()=>{ /* @ts-ignore */ state.inputs[id]=el.checked; recompute(); });
+      });
+      qSel("smoking").forEach(r=> r.addEventListener("change", ()=>{ /* @ts-ignore */ state.inputs.smoking = document.querySelector('input[name="smoking"]:checked').value; recompute(); }));
+
+      [["bp","q-bp"],["chol","q-chol"],["glu","q-glu"],["smoke","q-smoke"],["bmi","q-bmi"],["pa","q-pa"],["diet","q-diet"]]
+      .forEach(([key, group])=>{
+        qSel(group).forEach(r=> r.addEventListener("change", ()=>{ /* @ts-ignore */ state.quick[key] = document.querySelector(`input[name="${group}"]:checked`)?.value || ""; recompute(); }));
+      });
+
+      document.getElementById("btn-reset").addEventListener("click", ()=>{
+        // @ts-ignore
+        state.quick = { bp:"", chol:"", glu:"", smoke:"", bmi:"", pa:"", diet:"" };
+        // @ts-ignore
+        state.inputs = { sbp:120, dbp:75, bpMed:false, chol:180, lipidMed:false, a1c:5.4, gluMed:false, smoking:"never", bmi:23.5, paMin:160, hei:82 };
+        ["sbp","dbp","chol","a1c","bmi","paMin","hei"].forEach(id=>(document.getElementById(id) as HTMLInputElement).value = String(/* @ts-ignore */ state.inputs[id]));
+        ["bpMed","lipidMed","gluMed"].forEach(id=>(document.getElementById(id) as HTMLInputElement).checked = /* @ts-ignore */ state.inputs[id]);
+        qSel("smoking").forEach((r:HTMLInputElement)=>{ r.checked = (r.value===/* @ts-ignore */ state.inputs.smoking); });
+        ["q-bp","q-chol","q-glu","q-smoke","q-bmi","q-pa","q-diet"].forEach(g=>qSel(g).forEach((r:HTMLInputElement)=>r.checked=false));
+        recompute();
+      });
+
+      document.getElementById("btn-copy").addEventListener("click", async ()=>{
+        const statuses = computeStatuses();
+        const score = document.getElementById("score").textContent;
+        const lines = [
+          `LS7 总分：${score}/14（${bandFromScore(Number(score))}）`,
+          `血压：${statuses.BloodPressure||"未填"}`,
+          `胆固醇：${statuses.Cholesterol||"未填"}`,
+          `血糖(HbA1c)：${statuses.Glucose||"未填"}`,
+          `吸烟：${statuses.Smoking||"未填"}`,
+          `BMI：${statuses.BMI||"未填"}`,
+          `体力活动：${statuses.PhysicalActivity||"未填"}`,
+          `饮食(HEI)：${statuses.Diet||"未填"}`,
+          "(仅供健康教育参考，非医疗建议)"
+        ];
+        const text = lines.join("\n");
+        try{ await navigator.clipboard.writeText(text); alert("结果已复制到剪贴板！"); }
+        catch(e){ console.log(e); prompt("复制失败。请全选并复制下方文本：", text); }
+      });
+
+      recompute();
+    }
+
+    function runTests(){
+      function assertEqual(name, got, expect){ const ok=(got===expect); console.log(`${ok?"✅":"❌"} ${name}:`, got, 'expected:', expect); }
+      assertEqual('band 0', bandFromScore(0), '不良');
+      assertEqual('band 4', bandFromScore(4), '不良');
+      assertEqual('band 5', bandFromScore(5), '中等');
+      assertEqual('band 9', bandFromScore(9), '中等');
+      assertEqual('band 10', bandFromScore(10), '理想');
+      assertEqual('band 14', bandFromScore(14), '理想');
+      assertEqual('pts Ideal', statusToPoints('Ideal'), 2);
+      assertEqual('pts Intermediate', statusToPoints('Intermediate'), 1);
+      assertEqual('pts Poor', statusToPoints('Poor'), 0);
+    }
+
+    window.addEventListener('DOMContentLoaded', ()=>{ wire(); runTests(); });
+  </script>
+</body>
+</html>
